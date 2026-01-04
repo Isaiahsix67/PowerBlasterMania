@@ -1,0 +1,273 @@
+-- =====================================================
+-- ADVANCED MOVEMENT SYSTEM
+-- Location: StarterPlayer > StarterCharacterScripts > MovementScript
+-- Mechanics: Crouch, Slide, Prone, Vault, Dive, Wall Kick
+-- =====================================================
+
+local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local root = character:WaitForChild("HumanoidRootPart")
+local camera = workspace.CurrentCamera
+
+---------------------------------------------------------------------
+-- KEYBIND SETTINGS
+---------------------------------------------------------------------
+
+local crouchKey = Enum.KeyCode.LeftShift
+local proneKey = Enum.KeyCode.LeftControl
+local vaultKey = Enum.KeyCode.Space
+local diveKey = Enum.KeyCode.C
+local wallKickKey = Enum.KeyCode.Q
+
+---------------------------------------------------------------------
+-- MOVEMENT STATE
+---------------------------------------------------------------------
+
+local crouching = false
+local prone = false
+local sliding = false
+local diving = false
+local wallKicking = false
+
+---------------------------------------------------------------------
+-- HEIGHT SETTINGS
+---------------------------------------------------------------------
+
+local normalHeight = humanoid.HipHeight
+local crouchHeight = normalHeight - 1
+local proneHeight = normalHeight - 2
+
+---------------------------------------------------------------------
+-- SPEED SETTINGS
+---------------------------------------------------------------------
+
+local normalSpeed = 16
+local crouchSpeed = 8
+local proneSpeed = 6
+local slideSpeed = 24
+local diveSpeed = 30
+
+---------------------------------------------------------------------
+-- CAMERA OFFSET SETTINGS
+---------------------------------------------------------------------
+
+local normalCamOffset = Vector3.new(0, 0, 0)
+local crouchCamOffset = Vector3.new(0, -1, 0)
+local proneCamOffset = Vector3.new(0, -2, 0)
+
+---------------------------------------------------------------------
+-- TWEEN SETTINGS
+---------------------------------------------------------------------
+
+local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function tween(obj, props)
+    TweenService:Create(obj, tweenInfo, props):Play()
+end
+
+---------------------------------------------------------------------
+-- CROUCH MECHANIC
+---------------------------------------------------------------------
+
+local function setCrouch(state)
+    if sliding or prone or diving or wallKicking then return end
+    crouching = state
+
+    tween(humanoid, {HipHeight = state and crouchHeight or normalHeight})
+    humanoid.WalkSpeed = state and crouchSpeed or normalSpeed
+    tween(camera, {CFrame = camera.CFrame * CFrame.new(state and crouchCamOffset or normalCamOffset)})
+end
+
+---------------------------------------------------------------------
+-- PRONE MECHANIC
+---------------------------------------------------------------------
+
+local function setProne(state)
+    if sliding or diving or wallKicking then return end
+    prone = state
+    crouching = false
+
+    tween(humanoid, {HipHeight = state and proneHeight or normalHeight})
+    humanoid.WalkSpeed = state and proneSpeed or normalSpeed
+    tween(camera, {CFrame = camera.CFrame * CFrame.new(state and proneCamOffset or normalCamOffset)})
+end
+
+---------------------------------------------------------------------
+-- SLIDE MECHANIC
+---------------------------------------------------------------------
+
+local function startSlide()
+    if sliding or prone or diving or wallKicking then return end
+    if humanoid.MoveDirection.Magnitude < 0.1 then return end
+
+    sliding = true
+    crouching = false
+
+    tween(humanoid, {HipHeight = crouchHeight - 0.5})
+    humanoid.WalkSpeed = slideSpeed
+
+    task.wait(0.6) -- slide duration
+
+    sliding = false
+    setCrouch(true)
+end
+
+---------------------------------------------------------------------
+-- DIVE MECHANIC
+---------------------------------------------------------------------
+
+local function startDive()
+    if diving or prone or sliding or wallKicking then return end
+    if humanoid.MoveDirection.Magnitude < 0.1 then return end
+
+    diving = true
+    crouching = false
+
+    -- Lower the player
+    tween(humanoid, {HipHeight = proneHeight - 0.5})
+
+    -- Create dive force
+    local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
+    bodyVelocity.Velocity = root.CFrame.LookVector * diveSpeed + Vector3.new(0, -5, 0)
+    bodyVelocity.Parent = root
+
+    -- Tilt camera forward slightly
+    local originalCameraCFrame = camera.CFrame
+    tween(camera, {CFrame = camera.CFrame * CFrame.Angles(math.rad(-15), 0, 0)})
+
+    task.wait(0.5) -- dive duration
+
+    bodyVelocity:Destroy()
+    diving = false
+
+    -- Return to normal
+    tween(humanoid, {HipHeight = normalHeight})
+    humanoid.WalkSpeed = normalSpeed
+end
+
+---------------------------------------------------------------------
+-- WALL KICK MECHANIC
+---------------------------------------------------------------------
+
+local function detectWall()
+    local rayOrigin = root.Position
+    local directions = {
+        root.CFrame.RightVector * 3,   -- Right wall
+        root.CFrame.RightVector * -3,  -- Left wall
+        root.CFrame.LookVector * 3,    -- Front wall
+        root.CFrame.LookVector * -3    -- Back wall
+    }
+
+    for _, direction in ipairs(directions) do
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {character}
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+        local result = workspace:Raycast(rayOrigin, direction, raycastParams)
+
+        if result and result.Instance then
+            -- Check if wall is roughly vertical
+            local wallNormal = result.Normal
+            if math.abs(wallNormal.Y) < 0.3 then
+                return result, wallNormal
+            end
+        end
+    end
+
+    return nil, nil
+end
+
+local function startWallKick()
+    if wallKicking or prone or diving then return end
+
+    local wallResult, wallNormal = detectWall()
+    if not wallResult then return end
+
+    wallKicking = true
+
+    -- Kick off wall in opposite direction
+    local kickDirection = wallNormal
+    local kickForce = kickDirection * 35 + Vector3.new(0, 15, 0)
+
+    local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+    bodyVelocity.Velocity = kickForce
+    bodyVelocity.Parent = root
+
+    -- Quick camera effect
+    tween(camera, {FieldOfView = 90})
+
+    task.wait(0.3) -- kick duration
+
+    -- Clean up
+    if bodyVelocity and bodyVelocity.Parent then
+        bodyVelocity:Destroy()
+    end
+
+    tween(camera, {FieldOfView = 70})
+    wallKicking = false
+end
+
+---------------------------------------------------------------------
+-- VAULT MECHANIC
+---------------------------------------------------------------------
+
+local function tryVault()
+    if wallKicking or diving then return end
+
+    local rayOrigin = root.Position
+    local rayDirection = root.CFrame.LookVector * 3
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
+    if result and result.Instance and result.Instance.Size.Y <= 4 then
+        tween(root, {CFrame = root.CFrame * CFrame.new(0, 3, -2)})
+    end
+end
+
+---------------------------------------------------------------------
+-- INPUT HANDLING
+---------------------------------------------------------------------
+
+UIS.InputBegan:Connect(function(input, processed)
+    if processed then return end
+
+    -- Crouch / Slide
+    if input.KeyCode == crouchKey then
+        if humanoid.WalkSpeed > normalSpeed then
+            startSlide()
+        else
+            setCrouch(not crouching)
+        end
+    end
+
+    -- Prone
+    if input.KeyCode == proneKey then
+        setProne(not prone)
+    end
+
+    -- Vault
+    if input.KeyCode == vaultKey then
+        tryVault()
+    end
+
+    -- Dive
+    if input.KeyCode == diveKey then
+        startDive()
+    end
+
+    -- Wall Kick
+    if input.KeyCode == wallKickKey then
+        startWallKick()
+    end
+end)
