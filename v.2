@@ -1,0 +1,94 @@
+-- MOBILE MOVEMENT BUTTONS (Updated with Dive + Wall Run)
+local UIS = game:GetService("UserInputService")
+
+local gui = script.Parent
+
+local crouchBtn = gui:WaitForChild("CrouchButton")
+local proneBtn = gui:WaitForChild("ProneButton")
+local slideBtn = gui:WaitForChild("SlideButton")
+local vaultBtn = gui:WaitForChild("VaultButton")
+local diveBtn = gui:WaitForChild("DiveButton")
+
+---------------------------------------------------------------------
+-- Helper: simulate key press
+---------------------------------------------------------------------
+local function press(key)
+    UIS.InputBegan:Fire({
+        KeyCode = key
+    }, false)
+end
+
+---------------------------------------------------------------------
+-- Helper: style a button
+---------------------------------------------------------------------
+local function style(btn, text, glowColor)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    btn.BorderSizePixel = 0
+
+    -- Rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = btn
+
+    -- Glow outline
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = glowColor or Color3.fromRGB(0, 170, 255)
+    stroke.Parent = btn
+
+    -- Padding
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 4)
+    padding.PaddingBottom = UDim.new(0, 4)
+    padding.PaddingLeft = UDim.new(0, 4)
+    padding.PaddingRight = UDim.new(0, 4)
+    padding.Parent = btn
+end
+
+---------------------------------------------------------------------
+-- Apply styles
+---------------------------------------------------------------------
+style(crouchBtn, "Crouch", Color3.fromRGB(0, 170, 255))
+style(proneBtn, "Prone", Color3.fromRGB(0, 170, 255))
+style(slideBtn, "Slide", Color3.fromRGB(0, 170, 255))
+style(vaultBtn, "Vault", Color3.fromRGB(0, 170, 255))
+style(diveBtn, "Dive", Color3.fromRGB(255, 100, 0))
+
+---------------------------------------------------------------------
+-- Track double-tap for dive
+---------------------------------------------------------------------
+local lastCrouchTap = 0
+local doubleTapWindow = 0.3
+
+crouchBtn.MouseButton1Click:Connect(function()
+    local now = tick()
+    if now - lastCrouchTap < doubleTapWindow then
+        -- Double tap detected - trigger dive
+        press(Enum.KeyCode.C)
+    else
+        -- Single tap - normal crouch
+        press(Enum.KeyCode.LeftShift)
+    end
+    lastCrouchTap = now
+end)
+
+proneBtn.MouseButton1Click:Connect(function()
+    press(Enum.KeyCode.LeftControl)
+end)
+
+slideBtn.MouseButton1Click:Connect(function()
+    press(Enum.KeyCode.LeftShift)
+end)
+
+vaultBtn.MouseButton1Click:Connect(function()
+    press(Enum.KeyCode.Space)
+end)
+
+diveBtn.MouseButton1Click:Connect(function()
+    press(Enum.KeyCode.C)
+end)
