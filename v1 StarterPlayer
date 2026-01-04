@@ -1,0 +1,110 @@
+-- ADVANCED MOVEMENT SYSTEM
+local UIS = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local camera = workspace.CurrentCamera
+
+-- SETTINGS
+local crouchKey = Enum.KeyCode.LeftShift
+local proneKey = Enum.KeyCode.LeftControl
+local slideKey = Enum.KeyCode.LeftShift -- slide while sprinting + crouch
+local vaultKey = Enum.KeyCode.Space
+
+local crouching = false
+local prone = false
+local sliding = false
+
+local normalHeight = humanoid.HipHeight
+local crouchHeight = normalHeight - 1
+local proneHeight = normalHeight - 2
+
+local normalSpeed = 16
+local crouchSpeed = 8
+local proneSpeed = 6
+local slideSpeed = 24
+
+local normalCamOffset = Vector3.new(0, 0, 0)
+local crouchCamOffset = Vector3.new(0, -1, 0)
+local proneCamOffset = Vector3.new(0, -2, 0)
+
+local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- Smooth transition function
+local function tween(obj, props)
+	TweenService:Create(obj, tweenInfo, props):Play()
+end
+
+-- CROUCH
+local function setCrouch(state)
+	if sliding or prone then return end
+	crouching = state
+
+	tween(humanoid, {HipHeight = state and crouchHeight or normalHeight})
+	humanoid.WalkSpeed = state and crouchSpeed or normalSpeed
+	tween(camera, {CFrame = camera.CFrame * CFrame.new(state and crouchCamOffset or normalCamOffset)})
+end
+
+-- PRONE
+local function setProne(state)
+	if sliding then return end
+	prone = state
+	crouching = false
+
+	tween(humanoid, {HipHeight = state and proneHeight or normalHeight})
+	humanoid.WalkSpeed = state and proneSpeed or normalSpeed
+	tween(camera, {CFrame = camera.CFrame * CFrame.new(state and proneCamOffset or normalCamOffset)})
+end
+
+-- SLIDE
+local function startSlide()
+	if sliding or prone then return end
+	if humanoid.MoveDirection.Magnitude < 0.1 then return end
+
+	sliding = true
+	crouching = false
+
+	tween(humanoid, {HipHeight = crouchHeight - 0.5})
+	humanoid.WalkSpeed = slideSpeed
+
+	task.wait(0.6) -- slide duration
+
+	sliding = false
+	setCrouch(true)
+end
+
+-- VAULT
+local function tryVault()
+	local ray = Ray.new(character.HumanoidRootPart.Position, character.HumanoidRootPart.CFrame.LookVector * 3)
+	local part = workspace:FindPartOnRay(ray, character)
+
+	if part and part.Size.Y <= 4 then
+		local root = character.HumanoidRootPart
+		tween(root, {CFrame = root.CFrame * CFrame.new(0, 3, -2)})
+	end
+end
+
+-- INPUT HANDLING
+UIS.InputBegan:Connect(function(input, processed)
+	if processed then return end
+
+	if input.KeyCode == crouchKey then
+		if humanoid.WalkSpeed > normalSpeed then
+			startSlide()
+		else
+			setCrouch(not crouching)
+		end
+	end
+
+	if input.KeyCode == proneKey then
+		setProne(not prone)
+	end
+
+	if input.KeyCode == vaultKey then
+		tryVault()
+	end
+end)
