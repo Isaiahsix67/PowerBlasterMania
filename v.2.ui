@@ -1,0 +1,401 @@
+-- =====================================================
+-- UI STYLING & ANIMATION SCRIPT
+-- Location: StarterGui > ScreenGui > StylingScript
+-- Includes: Hover effects, press animations, glow pulses, entrance animations
+-- =====================================================
+
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local gui = script.Parent
+
+-- Get all buttons
+local crouchBtn = gui:WaitForChild("CrouchButton")
+local proneBtn = gui:WaitForChild("ProneButton")
+local slideBtn = gui:WaitForChild("SlideButton")
+local vaultBtn = gui:WaitForChild("VaultButton")
+local diveBtn = gui:WaitForChild("DiveButton")
+local wallKickBtn = gui:WaitForChild("WallKickButton")
+
+---------------------------------------------------------------------
+-- TWEEN PRESETS
+---------------------------------------------------------------------
+
+local hoverTweenInfo = TweenInfo.new(
+    0.2, -- Duration
+    Enum.EasingStyle.Back,
+    Enum.EasingDirection.Out
+)
+
+local pressTweenInfo = TweenInfo.new(
+    0.1,
+    Enum.EasingStyle.Quad,
+    Enum.EasingDirection.InOut
+)
+
+local entranceTweenInfo = TweenInfo.new(
+    0.5,
+    Enum.EasingStyle.Elastic,
+    Enum.EasingDirection.Out
+)
+
+local glowTweenInfo = TweenInfo.new(
+    1.2,
+    Enum.EasingStyle.Sine,
+    Enum.EasingDirection.InOut,
+    -1, -- Repeat infinitely
+    true -- Reverse
+)
+
+---------------------------------------------------------------------
+-- STYLING FUNCTION
+---------------------------------------------------------------------
+
+local function style(btn, text, glowColor)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    btn.BorderSizePixel = 0
+    btn.BackgroundTransparency = 0.1
+
+    -- Rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = btn
+
+    -- Glow outline
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 2
+    stroke.Color = glowColor
+    stroke.Transparency = 0.3
+    stroke.Parent = btn
+
+    -- Padding
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 4)
+    padding.PaddingBottom = UDim.new(0, 4)
+    padding.PaddingLeft = UDim.new(0, 4)
+    padding.PaddingRight = UDim.new(0, 4)
+    padding.Parent = btn
+
+    -- Shadow effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.7
+    shadow.Size = UDim2.new(1, 6, 1, 6)
+    shadow.Position = UDim2.new(0, -3, 0, 3)
+    shadow.ZIndex = btn.ZIndex - 1
+    shadow.Parent = btn
+
+    return stroke
+end
+
+---------------------------------------------------------------------
+-- ANIMATION FUNCTIONS
+---------------------------------------------------------------------
+
+-- Hover animation (scale up + glow intensify)
+local function setupHoverAnimation(btn, stroke)
+    local originalSize = btn.Size
+    local hovering = false
+
+    btn.MouseEnter:Connect(function()
+        hovering = true
+        
+        -- Scale up
+        local scaleTween = TweenService:Create(btn, hoverTweenInfo, {
+            Size = UDim2.new(
+                originalSize.X.Scale * 1.08,
+                originalSize.X.Offset,
+                originalSize.Y.Scale * 1.08,
+                originalSize.Y.Offset
+            )
+        })
+        scaleTween:Play()
+
+        -- Brighten glow
+        local glowTween = TweenService:Create(stroke, hoverTweenInfo, {
+            Transparency = 0,
+            Thickness = 3
+        })
+        glowTween:Play()
+
+        -- Brighten background
+        local bgTween = TweenService:Create(btn, hoverTweenInfo, {
+            BackgroundTransparency = 0
+        })
+        bgTween:Play()
+    end)
+
+    btn.MouseLeave:Connect(function()
+        hovering = false
+        
+        -- Scale back
+        local scaleTween = TweenService:Create(btn, hoverTweenInfo, {
+            Size = originalSize
+        })
+        scaleTween:Play()
+
+        -- Dim glow
+        local glowTween = TweenService:Create(stroke, hoverTweenInfo, {
+            Transparency = 0.3,
+            Thickness = 2
+        })
+        glowTween:Play()
+
+        -- Dim background
+        local bgTween = TweenService:Create(btn, hoverTweenInfo, {
+            BackgroundTransparency = 0.1
+        })
+        bgTween:Play()
+    end)
+end
+
+-- Press animation (quick shrink + pop)
+local function setupPressAnimation(btn)
+    local originalSize = btn.Size
+
+    btn.MouseButton1Down:Connect(function()
+        -- Shrink on press
+        local pressTween = TweenService:Create(btn, pressTweenInfo, {
+            Size = UDim2.new(
+                originalSize.X.Scale * 0.92,
+                originalSize.X.Offset,
+                originalSize.Y.Scale * 0.92,
+                originalSize.Y.Offset
+            )
+        })
+        pressTween:Play()
+
+        -- Flash effect
+        local flashTween = TweenService:Create(btn, pressTweenInfo, {
+            BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        })
+        flashTween:Play()
+    end)
+
+    btn.MouseButton1Up:Connect(function()
+        -- Pop back
+        local releaseTween = TweenService:Create(btn, pressTweenInfo, {
+            Size = originalSize
+        })
+        releaseTween:Play()
+
+        -- Return color
+        local colorTween = TweenService:Create(btn, pressTweenInfo, {
+            BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        })
+        colorTween:Play()
+    end)
+end
+
+-- Idle glow pulse animation
+local function setupGlowPulse(stroke, glowColor)
+    local darkColor = Color3.new(
+        glowColor.R * 0.5,
+        glowColor.G * 0.5,
+        glowColor.B * 0.5
+    )
+    
+    local pulseTween = TweenService:Create(stroke, glowTweenInfo, {
+        Color = darkColor
+    })
+    pulseTween:Play()
+end
+
+-- Entrance animation (slide + fade in)
+local function setupEntranceAnimation(btn, delay)
+    -- Start invisible and offset
+    local originalPosition = btn.Position
+    btn.BackgroundTransparency = 1
+    btn.TextTransparency = 1
+    btn.Position = UDim2.new(
+        originalPosition.X.Scale,
+        originalPosition.X.Offset - 50,
+        originalPosition.Y.Scale,
+        originalPosition.Y.Offset
+    )
+
+    task.wait(delay)
+
+    -- Slide in
+    local slideTween = TweenService:Create(btn, entranceTweenInfo, {
+        Position = originalPosition
+    })
+    slideTween:Play()
+
+    -- Fade in
+    local fadeTween = TweenService:Create(btn, entranceTweenInfo, {
+        BackgroundTransparency = 0.1,
+        TextTransparency = 0
+    })
+    fadeTween:Play()
+end
+
+-- Ripple effect on click
+local function createRipple(btn, glowColor)
+    btn.MouseButton1Click:Connect(function()
+        local ripple = Instance.new("Frame")
+        ripple.Name = "Ripple"
+        ripple.BackgroundColor3 = glowColor
+        ripple.BackgroundTransparency = 0.5
+        ripple.BorderSizePixel = 0
+        ripple.Size = UDim2.new(0, 0, 0, 0)
+        ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
+        ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+        ripple.ZIndex = btn.ZIndex + 1
+        ripple.Parent = btn
+
+        local rippleCorner = Instance.new("UICorner")
+        rippleCorner.CornerRadius = UDim.new(1, 0)
+        rippleCorner.Parent = ripple
+
+        -- Expand ripple
+        local expandTween = TweenService:Create(ripple, TweenInfo.new(0.6), {
+            Size = UDim2.new(2, 0, 2, 0),
+            BackgroundTransparency = 1
+        })
+        expandTween:Play()
+
+        expandTween.Completed:Connect(function()
+            ripple:Destroy()
+        end)
+    end)
+end
+
+-- Breathing animation (subtle scale pulse)
+local function setupBreathingAnimation(btn)
+    local originalSize = btn.Size
+    local breatheInfo = TweenInfo.new(
+        2,
+        Enum.EasingStyle.Sine,
+        Enum.EasingDirection.InOut,
+        -1,
+        true
+    )
+
+    local breatheTween = TweenService:Create(btn, breatheInfo, {
+        Size = UDim2.new(
+            originalSize.X.Scale * 1.02,
+            originalSize.X.Offset,
+            originalSize.Y.Scale * 1.02,
+            originalSize.Y.Offset
+        )
+    })
+    breatheTween:Play()
+end
+
+---------------------------------------------------------------------
+-- PARTICLE EFFECT (Optional Visual Enhancement)
+---------------------------------------------------------------------
+
+local function addParticleGlow(btn, glowColor)
+    -- Create subtle particle effect for special buttons
+    local particles = Instance.new("Frame")
+    particles.Name = "Particles"
+    particles.BackgroundTransparency = 1
+    particles.Size = UDim2.new(1, 0, 1, 0)
+    particles.ZIndex = btn.ZIndex + 2
+    particles.Parent = btn
+
+    -- Spawn floating particles
+    task.spawn(function()
+        while true do
+            local particle = Instance.new("Frame")
+            particle.BackgroundColor3 = glowColor
+            particle.BackgroundTransparency = 0.5
+            particle.BorderSizePixel = 0
+            particle.Size = UDim2.new(0, math.random(2, 5), 0, math.random(2, 5))
+            particle.Position = UDim2.new(
+                math.random(0, 100) / 100,
+                0,
+                math.random(0, 100) / 100,
+                0
+            )
+            particle.ZIndex = btn.ZIndex + 3
+            particle.Parent = particles
+
+            local particleCorner = Instance.new("UICorner")
+            particleCorner.CornerRadius = UDim.new(1, 0)
+            particleCorner.Parent = particle
+
+            -- Fade out and float up
+            local floatTween = TweenService:Create(particle, TweenInfo.new(1.5), {
+                Position = particle.Position + UDim2.new(0, 0, -0.3, 0),
+                BackgroundTransparency = 1
+            })
+            floatTween:Play()
+
+            floatTween.Completed:Connect(function()
+                particle:Destroy()
+            end)
+
+            task.wait(0.5)
+        end
+    end)
+end
+
+---------------------------------------------------------------------
+-- APPLY STYLES AND ANIMATIONS TO ALL BUTTONS
+---------------------------------------------------------------------
+
+-- Button configurations: {button, text, glowColor, hasParticles}
+local buttonConfigs = {
+    {crouchBtn, "Crouch", Color3.fromRGB(0, 170, 255), false},
+    {proneBtn, "Prone", Color3.fromRGB(0, 170, 255), false},
+    {slideBtn, "Slide", Color3.fromRGB(100, 200, 255), false},
+    {vaultBtn, "Vault", Color3.fromRGB(0, 255, 150), false},
+    {diveBtn, "Dive", Color3.fromRGB(255, 100, 0), true},
+    {wallKickBtn, "Wall Kick", Color3.fromRGB(200, 0, 255), true}
+}
+
+for i, config in ipairs(buttonConfigs) do
+    local btn = config[1]
+    local text = config[2]
+    local glowColor = config[3]
+    local hasParticles = config[4]
+
+    -- Apply styling
+    local stroke = style(btn, text, glowColor)
+
+    -- Setup animations
+    setupHoverAnimation(btn, stroke)
+    setupPressAnimation(btn)
+    setupGlowPulse(stroke, glowColor)
+    setupEntranceAnimation(btn, i * 0.1) -- Staggered entrance
+    createRipple(btn, glowColor)
+    setupBreathingAnimation(btn)
+
+    -- Add particle effects to special buttons
+    if hasParticles then
+        addParticleGlow(btn, glowColor)
+    end
+end
+
+---------------------------------------------------------------------
+-- GLOBAL UI ANIMATION (Screen fade-in)
+---------------------------------------------------------------------
+
+local function setupScreenFadeIn()
+    gui.BackgroundTransparency = 0
+    gui.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+
+    local fadeTween = TweenService:Create(gui, TweenInfo.new(0.8), {
+        BackgroundTransparency = 1
+    })
+
+    task.wait(0.2)
+    fadeTween:Play()
+
+    fadeTween.Completed:Connect(function()
+        gui.BackgroundTransparency = 1
+    end)
+end
+
+setupScreenFadeIn()
+
+print("✨ UI Styling & Animations Loaded Successfully!")
